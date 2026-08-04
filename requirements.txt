@@ -1,0 +1,4 @@
+Flask==3.0.2
+pdfplumber==0.10.3
+requests==2.31.0
+gunicorn==21.2.0

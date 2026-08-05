@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MVP Dynamic Document Parser & Celigo Integration</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen py-10 px-4">
+    <div class="max-w-4xl mx-auto bg-gray-900 border border-gray-800 rounded-xl shadow-2xl overflow-hidden p-8 space-y-6">
+        <header class="border-b border-gray-800 pb-4">
+            <h1 class="text-2xl font-bold tracking-tight text-indigo-400">⚡ MVP Invoice & Sales Order Parser</h1>
+            <p class="text-sm text-gray-400">Upload PDF files or ZIP archives to dynamically extract all structured fields and sync with Celigo.</p>
+        </header>
+        
+        <div class="space-y-4">
+            <div class="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center hover:border-indigo-500 transition cursor-pointer" onclick="document.getElementById('fileInput').click()">
+                <p class="text-sm text-gray-300 font-medium">Click to select or drop your MVP PDFs / ZIP folders</p>
+                <input type="file" id="fileInput" name="files" multiple accept=".pdf,.zip" class="hidden" onchange="handleFileSelect(event)"/>
+            </div>
+            <div id="fileInfo" class="text-xs text-indigo-300 font-mono"></div>
+            
+            <div class="flex gap-4">
+                <button type="button" id="parseBtn" class="w-1/2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 px-4 rounded-lg transition shadow-lg">1. Parse & Preview Data</button>
+                <button type="button" id="sendBtn" class="w-1/2 bg-emerald-600 text-emerald-300 font-semibold py-2.5 px-4 rounded-lg transition opacity-50 cursor-not-allowed shadow-lg" disabled>2. Send to Celigo 🚀</button>
+            </div>
+        </div>
+
+        <div id="loading" class="hidden text-center text-indigo-400 font-medium animate-pulse">Processing documents dynamically... Please wait.</div>
+        
+        <div id="resultContainer" class="hidden border border-gray-800 rounded-xl p-6 bg-gray-950 space-y-3">
+            <h2 class="text-sm font-semibold text-emerald-400 uppercase tracking-wider">Structured JSON Output Payload</h2>
+            <pre id="outputJson" class="bg-gray-900 text-emerald-300 p-4 rounded-lg text-xs font-mono overflow-x-auto max-h-96 border border-gray-800"></pre>
+        </div>
+    </div>
+
+    <script>
+        let latestPayload = null;
+
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            document.getElementById('fileInfo').innerText = `Selected: ${files.length} file(s)`;
+        }
+
+        document.getElementById('parseBtn').addEventListener('click', async () => {
+            const fileInput = document.getElementById('fileInput');
+            if (fileInput.files.length === 0) { alert('Please select at least one PDF file or ZIP archive.'); return; }
+
+            const formData = new FormData();
+            for (let i = 0; i < fileInput.files.length; i++) { formData.append('files', fileInput.files[i]); }
+
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('resultContainer').classList.add('hidden');
+
+            try {
+                const response = await fetch('/api/parse-documents', { method: 'POST', body: formData });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || 'Server error during parsing');
+
+                latestPayload = result.data;
+                document.getElementById('outputJson').textContent = JSON.stringify(result, null, 2);
+                document.getElementById('resultContainer').classList.remove('hidden');
+
+                const sendBtn = document.getElementById('sendBtn');
+                sendBtn.disabled = false;
+                sendBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            } catch (err) {
+                alert('Error: ' + err.message);
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+            }
+        });
+
+        document.getElementById('sendBtn').addEventListener('click', async () => {
+            if (!latestPayload) { alert('Please parse documents first.'); return; }
+
+            document.getElementById('loading').classList.remove('hidden');
+
+            try {
+                const response = await fetch('/api/send-to-celigo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(latestPayload)
+                });
+                const result = await response.json();
+                alert(result.success ? 'Successfully sent to Celigo!' : 'Failed to send.');
+            } catch (err) { 
+                alert('Error: ' + err.message); 
+            } finally { 
+                document.getElementById('loading').classList.add('hidden'); 
+            }
+        });
+    </script>
+</body>
+</html>
